@@ -3,8 +3,18 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 
+const cors = require('cors');
+
+
 const app = express();
 const PORT = 3000;
+
+// permite sólo el origen del frontend
+app.use(cors({
+  origin: 'http://127.0.0.1:5500'
+}));
+
+
 
 app.use(express.json());
 
