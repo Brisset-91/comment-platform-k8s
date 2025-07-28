@@ -11,7 +11,7 @@ const PORT = 3000;
 
 // permite sólo el origen del frontend
 app.use(cors({
-  origin: 'http://127.0.0.1:5500'
+  origin: 'http://localhost:8080' // <-- importante
 }));
 
 
