@@ -7,7 +7,7 @@ const cors = require('cors');
 
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT;
 
 // permite sólo el origen del frontend
 app.use(cors({
