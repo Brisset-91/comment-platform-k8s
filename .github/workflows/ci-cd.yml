@@ -31,15 +31,19 @@ jobs:
           cd backend
           npm test
 
-      - name: Install frontend dependencies
-        run: |
-          cd frontend
-          npm install
+      - name: Frontend build (no-op, static HTML)
+        run: echo "No se requiere build para frontend estático"
+      #- name: Install frontend dependencies
+        #run: |
+          #cd frontend
+          #npm install
 
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm run build
+      - name: Frontend build (static)
+        run: echo "No build step needed for static frontend"
+      #- name: Build frontend
+        #run: |
+          #cd frontend
+          #npm run build
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
