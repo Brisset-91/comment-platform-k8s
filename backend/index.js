@@ -2,20 +2,16 @@
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
-
 const cors = require('cors');
 
 
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 
 // permite sólo el origen del frontend
 app.use(cors({
   origin: 'http://localhost:8080' // <-- importante
 }));
-
-
-
 app.use(express.json());
 
 const comentarioSchema = new mongoose.Schema({
@@ -46,6 +42,10 @@ app.post("/comentarios", async (req, res) => {
   res.status(201).json(nuevo);
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Servidor corriendo en http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app; // <-- Exporta el app para Supertest
