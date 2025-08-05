@@ -87,7 +87,8 @@
 
   <script>
     async function cargarComentarios() {
-      const res = await fetch('http://localhost:3000/comentarios');
+      /*usa el nombre del servicio de backend en Kubernetes http://backend-service:3000)*/
+      const res = await fetch('http://backend-service:3000/comentarios');
       const datos = await res.json();
       const lista = document.getElementById('lista');
       lista.innerHTML = '';
@@ -102,7 +103,8 @@
       e.preventDefault();
       const autor = document.getElementById('autor').value;
       const mensaje = document.getElementById('mensaje').value;
-      await fetch('http://localhost:3000/comentarios', {
+      /*usa el nombre del servicio de backend en Kubernetes http://backend-service:3000)*/
+      await fetch('http://backend-service:3000/comentarios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ autor, mensaje })
