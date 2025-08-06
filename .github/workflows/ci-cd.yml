@@ -57,7 +57,18 @@ jobs:
           docker build -t ${{ secrets.DOCKER_USERNAME }}/backend:latest ./backend
           docker push ${{ secrets.DOCKER_USERNAME }}/backend:latest
 
+      - name: Set IMAGE_TAG
+        run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+
       - name: Build and push frontend image
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/frontend:latest ./frontend
-          docker push ${{ secrets.DOCKER_USERNAME }}/frontend:latest
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/frontend:${{ env.IMAGE_TAG }} ./frontend
+          docker push ${{ secrets.DOCKER_USERNAME }}/frontend:${{ env.IMAGE_TAG }}
+
+      - name: Replace image tag in frontend deployment
+        run: |
+          cat k8s/frontend-deployment.yaml | envsubst > k8s/frontend-deployment.final.yaml
+
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f k8s/frontend-deployment.final.yaml
