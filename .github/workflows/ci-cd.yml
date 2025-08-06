@@ -68,8 +68,8 @@ jobs:
       - name: Replace image tag in frontend deployment
         run: |
           export IMAGE_TAG=${GITHUB_SHA}
-          envsubst < k8s/frontend-deployment.yaml > k8s/frontend-deployment.final.yaml
+          envsubst < k8s/frontend-deployment.yaml > k8s/frontend-deployment.yaml
 
       - name: Apply Kubernetes manifests
         run: |
-          kubectl apply -f k8s/frontend-deployment.final.yaml
+          kubectl apply -f k8s/frontend-deployment.yaml
