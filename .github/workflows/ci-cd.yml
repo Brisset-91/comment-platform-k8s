@@ -69,9 +69,15 @@ jobs:
         run: |
           sed -i "s|\${IMAGE_TAG}|${GITHUB_SHA}|g" k8s/frontend-deployment.yaml
 
+      - name: Create Kubernetes Secret
+        run: |
+          kubectl create secret generic backend-secret \
+            --from-literal=mongo_url=${{ secrets.MONGO_URL }} \
+            --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Apply Kubernetes manifests
         run: |
+          kubectl apply -f k8s/backend-deployment.yaml
+          kubectl apply -f k8s/backend-service.yaml
           kubectl apply -f k8s/frontend-deployment.yaml
-
-
+          kubectl apply -f k8s/frontend-service.yaml
