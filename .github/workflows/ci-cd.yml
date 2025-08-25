@@ -38,6 +38,8 @@ jobs:
           #cd frontend
           #npm install
 
+      - name: Frontend build (static)
+        run: echo "No build step needed for static frontend"
       #- name: Build frontend
         #run: |
           #cd frontend
