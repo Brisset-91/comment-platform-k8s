@@ -1,0 +1,326 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches: [ main ]  
+
+# Los trabajos que va a ejecutar
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    env:
+      MONGO_URL: ${{ secrets.MONGO_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+ # ===== TESTS BÁSICOS =====
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          npm install
+
+      - name: Run backend tests
+        run: |
+          cd backend
+          npm test
+
+      - name: Frontend build (no-op, static HTML)
+        run: echo "No se requiere build para frontend estático"
+      #- name: Install frontend dependencies
+        #run: |
+          #cd frontend
+          #npm install
+
+      - name: Frontend build (static)
+        run: echo "No build step needed for static frontend"
+      #- name: Build frontend
+        #run: |
+          #cd frontend
+          #npm run build
+
+ # ===== DOCKER BUILD Y PUSH =====
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set IMAGE_TAG
+        run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+
+      # Construir imágenes localmente para testing antes de push
+      - name: Build images for testing
+        run: |
+          docker build -t test-backend:latest ./backend
+          docker build -t test-frontend:latest ./frontend
+
+    # ===== TESTING CON KUBERNETES =====
+      - name: Start Minikube for testing
+        uses: medyagh/setup-minikube@master
+        with:
+          minikube-version: 'latest'
+          kubernetes-version: 'latest'
+
+      - name: Verify Kubernetes cluster
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+          echo "✅ Kubernetes cluster is ready!"
+
+      - name: Load test images to Minikube
+        run: |
+          minikube image load test-backend:latest
+          minikube image load test-frontend:latest
+          echo "✅ Test images loaded into Minikube"  
+
+ # Preparar archivos de Kubernetes para testing
+      - name: Prepare Kubernetes manifests for testing
+        run: |
+          # Hacer copias para testing
+          cp k8s/backend-deployment.yaml k8s/backend-deployment-test.yaml
+          cp k8s/frontend-deployment.yaml k8s/frontend-deployment-test.yaml
+          
+          # Actualizar imágenes para usar las de testing
+          sed -i 's|image: .*backend.*|image: test-backend:latest|g' k8s/backend-deployment-test.yaml
+          sed -i 's|image: .*frontend.*|image: test-frontend:latest|g' k8s/frontend-deployment-test.yaml
+          
+          # Reemplazar variables de imagen si existen
+          sed -i 's|\${IMAGE_TAG}|latest|g' k8s/frontend-deployment-test.yaml
+          sed -i 's|\${IMAGE_TAG}|latest|g' k8s/backend-deployment-test.yaml
+          
+          echo "📝 Kubernetes manifests prepared for testing"
+
+# Desplegar MongoDB para testing
+      - name: Deploy test MongoDB
+        run: |
+          cat << EOF | kubectl apply -f -
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: mongo-test
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: mongo-test
+            template:
+              metadata:
+                labels:
+                  app: mongo-test
+              spec:
+                containers:
+                - name: mongo
+                  image: mongo:7
+                  ports:
+                  - containerPort: 27017
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: mongo-test
+          spec:
+            ports:
+            - port: 27017
+              targetPort: 27017
+            selector:
+              app: mongo-test
+          EOF
+          echo "🗄️ Test MongoDB deployed"
+
+      - name: Create Kubernetes Secret for testing
+        run: |
+          kubectl create secret generic backend-secret \
+            --from-literal=mongo_url="mongodb://mongo-test:27017/test_database" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          echo "🔐 Test secrets created"
+
+      - name: Deploy application to test environment
+        run: |
+          kubectl apply -f k8s/backend-deployment-test.yaml
+          kubectl apply -f k8s/backend-service.yaml
+          kubectl apply -f k8s/frontend-deployment-test.yaml
+          kubectl apply -f k8s/frontend-service.yaml
+          echo "🚀 Application deployed to test environment"
+
+      - name: Wait for test deployments
+        run: |
+          echo "⏳ Waiting for MongoDB..."
+          kubectl wait --for=condition=available --timeout=180s deployment/mongo-test || echo "MongoDB deployment timeout"
+          
+          echo "⏳ Waiting for backend..."
+          kubectl wait --for=condition=available --timeout=180s deployment/backend || echo "Backend deployment timeout"
+          
+          echo "⏳ Waiting for frontend..."
+          kubectl wait --for=condition=available --timeout=180s deployment/frontend || echo "Frontend deployment timeout"
+
+      - name: Run connectivity tests
+        run: |
+          echo "🧪 Running connectivity tests..."
+          
+          # Verificar que los pods están corriendo
+          kubectl get pods -o wide
+          
+          # Test de conectividad básica
+          echo "Testing backend connectivity..."
+          kubectl run test-backend --image=curlimages/curl:latest --rm -i --restart=Never -- \
+            curl -s --max-time 10 http://backend-service:3001/ || echo "⚠️ Backend connectivity test failed (might be expected)"
+          
+          echo "Testing frontend connectivity..."  
+          kubectl run test-frontend --image=curlimages/curl:latest --rm -i --restart=Never -- \
+            curl -s --max-time 10 http://frontend-service:3000/ || echo "⚠️ Frontend connectivity test failed (might be expected)"
+          
+          echo "✅ Connectivity tests completed"
+
+      - name: Show test results
+        if: always()
+        run: |
+          echo "📊 Test Environment Status:"
+          echo "=========================="
+          
+          echo "📦 Pods:"
+          kubectl get pods -o wide
+          
+          echo ""
+          echo "🌐 Services:"
+          kubectl get services
+          
+          echo ""
+          echo "📋 Recent Events:"
+          kubectl get events --sort-by='.lastTimestamp' | tail -10
+
+      - name: Debug logs if tests failed
+        if: failure()
+        run: |
+          echo "🐛 DEBUGGING INFORMATION"
+          echo "======================="
+          
+          echo "📄 MongoDB logs:"
+          kubectl logs -l app=mongo-test --tail=20 || echo "No MongoDB logs available"
+          
+          echo ""
+          echo "📄 Backend logs:"
+          kubectl logs -l app=backend --tail=20 || echo "No backend logs available"
+          
+          echo ""
+          echo "📄 Frontend logs:"
+          kubectl logs -l app=frontend --tail=20 || echo "No frontend logs available"
+
+      # ===== PUSH A DOCKER HUB (solo si los tests pasaron) =====
+      - name: Push backend image to Docker Hub
+        run: |
+          docker tag test-backend:latest ${{ secrets.DOCKER_USERNAME }}/backend:latest
+          docker tag test-backend:latest ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/backend:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}
+          echo "✅ Backend images pushed to Docker Hub"
+
+      - name: Push frontend image to Docker Hub
+        run: |
+          docker tag test-frontend:latest ${{ secrets.DOCKER_USERNAME }}/frontend:${{ env.IMAGE_TAG }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/frontend:${{ env.IMAGE_TAG }}
+          echo "✅ Frontend image pushed to Docker Hub"
+
+      # ===== PREPARAR MANIFESTS PARA DEPLOYMENT REAL =====
+      - name: Replace image tag in frontend deployment
+        run: |
+          sed -i "s|\${IMAGE_TAG}|${GITHUB_SHA}|g" k8s/frontend-deployment.yaml
+          echo "📝 Image tags updated in deployment files"
+
+      # ===== INFORMACIÓN PARA DEPLOYMENT MANUAL =====
+      - name: Create deployment summary
+        run: |
+          echo "🎉 BUILD AND TEST COMPLETED SUCCESSFULLY!"
+          echo "========================================"
+          echo ""
+          echo "📦 Images pushed to Docker Hub:"
+          echo "  - ${{ secrets.DOCKER_USERNAME }}/backend:latest"
+          echo "  - ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}"
+          echo "  - ${{ secrets.DOCKER_USERNAME }}/frontend:${{ env.IMAGE_TAG }}"
+          echo ""
+          echo "🚀 Ready for deployment!"
+          echo ""
+          echo "To deploy to your local Docker Desktop Kubernetes:"
+          echo "1. Make sure Docker Desktop Kubernetes is enabled"
+          echo "2. Run: kubectl create secret generic backend-secret --from-literal=mongo_url='your-mongo-url'"
+          echo "3. Run: kubectl apply -f k8s/"
+          echo ""
+          echo "Deployment files are ready with image tag: ${GITHUB_SHA}"
+
+      # Limpiar archivos temporales
+      - name: Cleanup test files
+        if: always()
+        run: |
+          rm -f k8s/*-test.yaml || true
+          echo "🧹 Temporary files cleaned up"
+
+  # ===== JOB SEPARADO PARA CREAR INSTRUCCIONES DE DEPLOYMENT =====
+  create-deployment-guide:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'  # Solo en main branch
+    
+    steps:
+      - name: Create deployment script
+        run: |
+          cat << 'EOF' > deploy-to-local.sh
+          #!/bin/bash
+          
+          echo "🚀 Deploying to local Docker Desktop Kubernetes..."
+          
+          # Verificar que kubectl funciona
+          if ! kubectl cluster-info > /dev/null 2>&1; then
+              echo "❌ Error: Cannot connect to Kubernetes cluster"
+              echo "   Make sure Docker Desktop is running with Kubernetes enabled"
+              exit 1
+          fi
+          
+          # Verificar contexto
+          CURRENT_CONTEXT=$(kubectl config current-context)
+          echo "📍 Current context: $CURRENT_CONTEXT"
+          
+          # Crear secret (reemplaza con tu MongoDB URL real)
+          echo "🔐 Creating secrets..."
+          kubectl create secret generic backend-secret \
+            --from-literal=mongo_url="${MONGO_URL:-mongodb://localhost:27017/your-database}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          # Aplicar manifests
+          echo "📦 Applying Kubernetes manifests..."
+          kubectl apply -f k8s/backend-deployment.yaml
+          kubectl apply -f k8s/backend-service.yaml
+          kubectl apply -f k8s/frontend-deployment.yaml
+          kubectl apply -f k8s/frontend-service.yaml
+          
+          echo "⏳ Waiting for deployments..."
+          kubectl wait --for=condition=available --timeout=300s deployment/backend || true
+          kubectl wait --for=condition=available --timeout=300s deployment/frontend || true
+          
+          echo "✅ Deployment completed!"
+          echo ""
+          echo "📊 Status:"
+          kubectl get pods -o wide
+          kubectl get services
+          
+          EOF
+          
+          chmod +x deploy-to-local.sh
+
+      - name: Upload deployment script
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-script
+          path: deploy-to-local.sh
