@@ -86,11 +86,37 @@
   </div>
 
   <script>
-    const API_URL = window.location.hostname === 'localhost'? 'http://localhost:3001': 'http://backend-service:3000';
-    //http://localhost:3001'  // Para desarrollo (mi laptop)
-    //'http://backend-service:3000';  // Para producción (Kubernetes)
-    console.log('🔧 Usando API:', API_URL);
-    
+  // 🧠 CONFIGURACIÓN INTELIGENTE DE API_URL
+
+  function getApiUrl() {
+      const hostname = window.location.hostname;
+      const port = window.location.port;
+      
+      console.log('🔍 Detectando entorno...');
+      console.log('   - Hostname:', hostname);
+      console.log('   - Port:', port);
+      
+      // Caso 1: Desarrollo local directo (archivo abierto localmente)
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          console.log('🏠 Entorno: Desarrollo local');
+          return 'http://localhost:3001';
+      }
+      
+      // Caso 2: Producción en cluster (con LoadBalancer o Ingress)
+      if (hostname.includes('.com') || hostname.includes('.net')) {
+          console.log('🌍 Entorno: Producción');
+          return `https://${hostname}/api`;  // Tu dominio de producción
+      }
+      
+      // Caso 3: Testing/Staging (IP del cluster o dominio temporal)
+      console.log('🧪 Entorno: Testing/Staging');
+      return `http://${hostname}:3001`;  // Asume que backend está en puerto 3001
+  }
+
+    // Usar la función
+    const API_URL = getApiUrl();
+    console.log('🔧 API_URL seleccionada:', API_URL);
+
     async function cargarComentarios() {
       
       const res = await fetch(`${API_URL}/comentarios`);
