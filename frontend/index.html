@@ -86,8 +86,14 @@
   </div>
 
   <script>
+    const API_URL = window.location.hostname === 'localhost'? 'http://localhost:3001': 'http://backend-service:3000';
+    //http://localhost:3001'  // Para desarrollo (mi laptop)
+    //'http://backend-service:3000';  // Para producción (Kubernetes)
+    console.log('🔧 Usando API:', API_URL);
+    
     async function cargarComentarios() {
-      const res = await fetch('http://localhost:3000/comentarios');
+      
+      const res = await fetch(`${API_URL}/comentarios`);
       const datos = await res.json();
       const lista = document.getElementById('lista');
       lista.innerHTML = '';
@@ -102,7 +108,7 @@
       e.preventDefault();
       const autor = document.getElementById('autor').value;
       const mensaje = document.getElementById('mensaje').value;
-      await fetch('http://localhost:3000/comentarios', {
+      await fetch(`${API_URL}/comentarios`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ autor, mensaje })
