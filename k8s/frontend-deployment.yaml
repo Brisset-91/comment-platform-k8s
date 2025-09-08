@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: brissetc/frontend:latest
+          image: brissetc/frontend::${IMAGE_TAG}
           imagePullPolicy: Always
           ports:
             - containerPort: 80

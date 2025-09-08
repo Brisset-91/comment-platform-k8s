@@ -230,15 +230,26 @@ jobs:
 
       - name: Push frontend image to Docker Hub
         run: |
+          docker tag test-frontend:latest ${{ secrets.DOCKER_USERNAME }}/frontend:latest
           docker tag test-frontend:latest ${{ secrets.DOCKER_USERNAME }}/frontend:${{ env.IMAGE_TAG }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/frontend:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/frontend:${{ env.IMAGE_TAG }}
-          echo "✅ Frontend image pushed to Docker Hub"
+          echo "✅ Frontend images pushed to Docker Hub"
 
       # ===== PREPARAR MANIFESTS PARA DEPLOYMENT REAL =====
-      - name: Replace image tag in frontend deployment
+      - name: Replace image tags in frontend deployment files
         run: |
+          # Actualizar frontend deployment
           sed -i "s|\${IMAGE_TAG}|${GITHUB_SHA}|g" k8s/frontend-deployment.yaml
-          echo "📝 Image tags updated in deployment files"
+          sed -i "s|:latest|:${GITHUB_SHA}|g" k8s/frontend-deployment.yaml
+          
+          # Actualizar backend deployment también
+          sed -i "s|\${IMAGE_TAG}|${GITHUB_SHA}|g" k8s/backend-deployment.yaml
+          sed -i "s|:latest|:${GITHUB_SHA}|g" k8s/backend-deployment.yaml
+          
+          echo "📝 Image tags updated in all deployment files"
+          echo "Frontend will use: ${{ secrets.DOCKER_USERNAME }}/frontend:${GITHUB_SHA}"
+          echo "Backend will use: ${{ secrets.DOCKER_USERNAME }}/backend:${GITHUB_SHA}"
 
       # ===== INFORMACIÓN PARA DEPLOYMENT MANUAL =====
       - name: Create deployment summary

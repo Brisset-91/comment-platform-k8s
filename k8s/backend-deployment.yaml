@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: brissetc/backend:latest
+          image: brissetc/backend::${IMAGE_TAG}
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
