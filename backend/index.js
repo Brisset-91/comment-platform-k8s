@@ -8,10 +8,19 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// permite sólo el origen del frontend
+//flexible para desarrollo:
 app.use(cors({
-  origin: 'http://localhost:8080' // <-- importante
+  origin: function (origin, callback) {
+    // Permitir requests sin origin (como Postman) y localhost en cualquier puerto
+    if (!origin || /^http:\/\/localhost:\d+$/.test(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
 }));
+
 app.use(express.json());
 
 const comentarioSchema = new mongoose.Schema({
