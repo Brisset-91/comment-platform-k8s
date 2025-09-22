@@ -3,84 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <title>Comentarios</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f0f2f5;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      min-height: 100vh;
-    }
-
-    .container {
-      background: #fff;
-      padding: 2rem;
-      margin-top: 3rem;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      width: 90%;
-      max-width: 500px;
-    }
-
-    h1 {
-      text-align: center;
-      color: #333;
-    }
-
-    form {
-      display: flex;
-      flex-direction: column;
-    }
-
-    input, textarea {
-      font-size: 1rem;
-      padding: 10px;
-      margin: 8px 0;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      resize: vertical;
-    }
-
-    button {
-      padding: 10px;
-      margin-top: 10px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      font-size: 1rem;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-
-    button:hover {
-      background-color: #0056b3;
-    }
-
-    ul {
-      list-style: none;
-      padding: 0;
-      margin-top: 1rem;
-    }
-
-    li {
-      background: #f8f8f8;
-      padding: 10px;
-      border-radius: 5px;
-      margin-bottom: 8px;
-      border-left: 4px solid #007bff;
-    }
-  </style>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="container">
-    <h1>Comentarios</h1>
+    <h1>💬 Comentarios</h1>
     <form id="form">
       <input type="text" id="autor" placeholder="Tu nombre" required>
       <textarea id="mensaje" placeholder="Escribe algo..." required></textarea>
-      <button type="submit">Enviar</button>
+      <button type="submit">🚀 Enviar</button>
     </form>
     <ul id="lista"></ul>
   </div>
